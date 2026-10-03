@@ -57,7 +57,7 @@ A escolha do bloco /16 para a VPC foi pensado levando em consideração a possib
 
 # 10. Riscos e Limitações 
 
-## 10.1. Riscos
+## 10.1. Tabela de Riscos
 | Risco | Descrição |
 |---|---|
 | Ponto único de falha no backend e no banco | Backend e banco rodam na mesma instância EC2. Se ela falhar, a aplicação e os dados ficam indisponíveis. |
@@ -65,3 +65,9 @@ A escolha do bloco /16 para a VPC foi pensado levando em consideração a possib
 | Perda de dados | O banco roda em container, sem serviço gerenciado. Sem backups, a falha do disco ou a remoção do container pode causar perda de dados, e o histórico precisa ser mantido integralmente. |
 | Ponto único de falha no NAT Gateway | Há um único NAT Gateway. Se ele falhar, o backend perde a saída para a internet e as sincronizações com o Portal da Transparência (Elotech) param. |
 | Dependência do Portal da Transparência | A atualização dos dados públicos depende da disponibilidade de um serviço externo, fora do controle da equipe. |
+
+## 10.2. Limitações
+* **Escalabilidade restrita:** o backend e o banco compartilham os recursos de uma única EC2, e a capacidade só aumenta com o aumento do porte da instância (escalabilidade vertical), o que exige reinício. A arquitetura atende ao volume atual, mas não a um crescimento expressivo de usuários ou de dados.
+* **Acesso administrativo manual:** a administração é feita via SSH pelo Bastion Host, sem automação completa de deploy, o que aumenta o risco de erro humano.
+* **Região fora do Brasil:** a região us-east-2 (Ohio) foi escolhida por critérios de custo e disponibilidade, mas aumenta a latência para os usuários em Serranópolis do Iguaçu - PR. Como o uso é leve, o impacto esperado é baixo.
+* **Dependência de serviço externo:** a atualização automática dos dados depende do Portal da Transparência da Elotech e da saída pelo NAT Gateway.
