@@ -31,6 +31,17 @@ Para garantir a segurança operacional e evitar exposições desnecessárias via
 * É utilizado um **Bastion Host (Amazon EC2)** dedicado a funcionar como um ponto de entrada seguro (entreposto).
 * O acesso administrativo às instâncias do backend via SSH (porta 22) é realizado exclusivamente através deste Bastion Host.
 
+# 3. Plano de endereçamento IP
+O dimensionamento da infraestrutura foi estruturado da seguinte forma: A região escolhida foi **us-east-2** (Ohio - USA), usando a zona de disponibilidade **us-east-2a**. Também foi definida uma VPC (Virtual private cloud) com o bloco privado 10.0.0.0/16, conforme a RFC 1918, subdividida em duas sub-redes /24, sem sobreposição:
+
+| Recurso | Nome | CIDR | Zona | Tipo | Finalidade |
+|---|---|---|---|---|---|
+| Rede virtual | vpc-pca | 10.0.0.0/16 | us-east-2a | - | Rede do projeto |
+| Sub-rede | pub-pca-a | 10.0.10.0/24 | us-east-2a | Pública | Bastion, NAT Gateway, Frontend da aplicação |
+| Sub-rede | priv-pca-a | 10.0.20.0/24 | us-east-2a | Privada | Backend da aplicação, banco |
+
+A escolha do bloco /16 para a VPC foi pensado levando em consideração a possibilidade de expansão futura da infraestrutura, esse bloco fornece 65.536 endereços IPV4, permitindo a criação outras sub-redes sem a necessidade de alterar o bloco. Para as sub-redes, foi escolhido o bloco /24 que fornece 256 endereços, quantidade suficiente para os recursos previstos em cada sub-rede. A AWS reserva 5 endereços em cada bloco CIDR de sub-rede para uso interno da infraestrutura, sendo eles os 4 primeiros endereços e o último, o que torna 251 endereços utilizáveis ao todo em cada sub-rede.
+
 # 6. Tabela de Tecnologias
 | Categoria | Tecnologia | Descrição |
 |---|---|---|
