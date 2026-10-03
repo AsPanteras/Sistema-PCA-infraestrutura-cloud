@@ -124,6 +124,37 @@ Abaixo está o detalhamento da capacidade alocada para cada componente da arquit
 * **Backend + Banco de Dados (t3.medium):** Esta é a máquina que suporta a maior carga de trabalho. Como os contêineres da API (Java/Spring Boot - JVM) e do banco de dados (PostgreSQL) rodam simultaneamente no mesmo *host*, tamanhos menores (como a *micro* com 1 GB ou *small* com 2 GB) resultariam em estouro de memória (OOM - *Out of Memory*), derrubando a aplicação. Os 4 GB de RAM da `t3.medium` suportam os serviços com folga. A escolha da família "T" (baseada em acúmulo de créditos de CPU) é ideal, pois a aplicação não exige processamento intenso em 100% do tempo.
 * **Bastion Host (t4g.nano):** A função exclusiva desta máquina é servir de ponte para tráfego SSH em direção à rede privada. Como não há processamento de dados nem hospedagem de aplicações, o menor tamanho disponível foi escolhido. A adoção da família `t4g` (processadores AWS Graviton baseados em arquitetura ARM) reduz o custo operacional mantendo a performance necessária para conexões seguras.
 
+# 8. Registros de Decisão Arquitetural (ADRs)
+
+Nesta seção, documentamos as principais decisões arquiteturais tomadas durante o planejamento do projeto CPA, detalhando o contexto, a decisão adotada e as suas consequências (positivas e negativas).
+
+## ADR 001: Hospedagem conjunta do Backend e Banco de Dados em uma única instância EC2
+
+* **Status:** Aceito
+* **Contexto:** A aplicação possui um volume de tráfego baixo a moderado, com um público-alvo de 5 a 10 usuários simultâneos, e restrições orçamentárias severas para o ambiente de desenvolvimento e produção. Avaliou-se o uso de um serviço de banco de dados gerenciado (Amazon RDS) e contêineres separados para a API.
+* **Decisão:** Optou-se por consolidar o backend (Java/Spring Boot) e o banco de dados (PostgreSQL) em contêineres Docker executados dentro de uma única instância Amazon EC2 (`t3.medium`).
+* **Consequências:**
+  * **Positivas:** Redução drástica de custos em comparação com a utilização de serviços gerenciados separados; simplificação do gerenciamento de rede (comunicação interna do Docker).
+  * **Negativas:** Criação de um ponto único de falha (Single Point of Failure). Se a instância EC2 cair, tanto a aplicação quanto os dados ficam indisponíveis. Exige a criação de rotinas manuais de backup do banco de dados e manutenção do SO.
+
+## ADR 002: Remoção do API Gateway e adoção de Proxy Reverso via Nginx (ECS Fargate)
+
+* **Status:** Aceito
+* **Contexto:** Inicialmente, cogitou-se o uso do AWS API Gateway para gerenciar e rotear as requisições externas para o backend na rede privada.
+* **Decisão:** O API Gateway foi removido do desenho para simplificar a arquitetura e otimizar o orçamento. A responsabilidade de roteamento foi transferida para o serviço de Frontend. O contêiner hospedado no AWS Fargate (ECS) executa o Nginx, que serve os arquivos estáticos do Angular e atua como proxy reverso, encaminhando as requisições de API diretamente para a porta 8080 do backend na sub-rede privada.
+* **Consequências:**
+  * **Positivas:** Redução de custos diretos e da complexidade da infraestrutura AWS. Centralização das configurações de rotas de fronteira no próprio código do frontend.
+  * **Negativas:** O contêiner de frontend assume uma responsabilidade dupla (servidor web e proxy de API), o que consome ligeiramente mais recursos locais no Fargate.
+
+## ADR 003: Isolamento em Sub-rede Privada e uso de NAT Gateway
+
+* **Status:** Aceito
+* **Contexto:** O banco de dados e as regras de negócio precisam de proteção máxima contra acesso externo direto, mas a aplicação (`LicitacaoService` / `SincronizacaoAgendadaJob`) precisa acessar constantemente a internet para consumir a API pública do Portal da Transparência (Elotech).
+* **Decisão:** A instância EC2 do backend/banco foi posicionada estritamente em uma sub-rede privada, sem IP público. Para permitir a saída para a internet, foi implementado um NAT Gateway na sub-rede pública. O acesso administrativo ocorre somente via um Bastion Host (jump box).
+* **Consequências:**
+  * **Positivas:** Aumento significativo da segurança e diminuição da superfície de ataque, seguindo as melhores práticas de proteção de dados.
+  * **Negativas:** O NAT Gateway tem um custo fixo atrelado ao tempo de existência (cobrança por hora) e ao volume de dados processados, tornando-se o ofensor de custos mais alto do projeto. Além disso, se o NAT Gateway falhar, a sincronização de dados do município para.
+
 # 10. Riscos e Limitações 
 
 ## 10.1. Tabela de Riscos
