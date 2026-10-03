@@ -12,14 +12,14 @@ Atualmente, são administrados cerca de 150 a 210 itens do PCA por ano, além de
 
 O sistema atual mantém o histórico integral dos dados, incluindo informações públicas sincronizadas do Portal da Transparência e dados próprios do setor, como andamentos, justificativas e registros de auditoria. A operação utiliza exclusivamente dados públicos, sem informações pessoais ou sensíveis.
 
-# 1.2. Descrição da Aplicação
+## 1.2. Descrição da Aplicação
 Seguindo a linha de raciocínio do que seria necessário para suprir as necessidades atuais dos usuários, para suportar essa governança, a aplicação CPA foi dimensionada para operar com uma base enxuta, pois são de 5 a 10 usuários simultâneos diariamente, apresentando um perfil de acesso estável e sem picos abruptos de tráfego.
 
 A aplicação CPA adota uma abordagem híbrida e moderna na nuvem, separando as camadas de interface do usuário, lógica de negócios e persistência de dados para garantir alta disponibilidade, escalabilidade e segurança.
 
 ### 1.2.1 Camada do FrontEnd
 O frontend é executado de forma conteinerizada utilizando **AWS ECS (Elastic Container Service)**.
-* **Proxy Reverso e Roteamento:**O gerenciamento do tráfego de entrada e o roteamento de caminhos  são centralizados em um proxy Nginx dedicado, responsável por realizar o proxy reverso e encaminhar as requisições diretamente para os serviços do backend, eliminando a necessidade do AWS API Gateway.
+* **Proxy Reverso e Roteamento:** O gerenciamento do tráfego de entrada e o roteamento de caminhos  são centralizados em um proxy Nginx dedicado, responsável por realizar o proxy reverso e encaminhar as requisições diretamente para os serviços do backend, eliminando a necessidade do AWS API Gateway.
 
 ### 1.2.2 Camada do BackEnd e Banco de Dados
 O núcleo da aplicação utiliza uma abordagem tradicional baseada em instâncias de máquinas virtuais **Amazon EC2 (VM)**.
@@ -32,5 +32,13 @@ Para garantir a segurança operacional e evitar exposições desnecessárias via
 * O acesso administrativo às instâncias do backend via SSH (porta 22) é realizado exclusivamente através deste Bastion Host.
 
 # 6. Tabela de Tecnologias
+| Categoria | Tecnologia | Descrição |
+|---|---|---|
+| Provedor de nuvem | **AWS** | Provedor de infraestrutura em nuvem escolhido para hospedar a aplicação. |
+| Frontend | **Amazon ECS (Elastic Container Service)** | Gerenciamento e execução do frontend em containers, utilizando uma abordagem serverless. |
+| Frontend | **Nginx** | Proxy reverso responsável pelo gerenciamento do tráfego de entrada e pelo roteamento das requisições para os serviços do backend. |
+| Backend | **Amazon EC2 (Elastic Compute Cloud)** | Instância de máquina virtual para hospedar e executar o backend em uma arquitetura tradicional. |
+| Backend e banco de dados | **Docker** | Containerização dos serviços do backend e do banco de dados, com comunicação interna entre os containers. |
+| Bastion Host | **Amazon EC2** | Instância dedicada ao acesso administrativo à máquina do backend, por meio de conexão SSH (porta 22). |
 
 
