@@ -10,6 +10,7 @@ Este documento tem como objetivo registrar a utilização de ferramentas de Inte
 
 -   **Claude (Anthropic):** utilizado como assistente de IA para apoio na revisão de consistência da documentação.
 
+
 ## Registro de utilização
 | Parte/atividade | Ferramenta | Descrição do uso |
 |---|---|---|
@@ -19,3 +20,4 @@ Este documento tem como objetivo registrar a utilização de ferramentas de Inte
 | Seção 10 — Riscos e limitações | ChatGPT (OpenAI) | Explicação sobre a elaboração da seção, com exemplos de riscos, impactos e limitações. |
 | Explicação de Sintaxe Markdown | Gemini (Google) | Orientação sobre como utilizar subtítulos (`##`, `###`) na formatação de arquivos `.md`. |
 | Revisão geral da documentação | Claude (Anthropic) | Apontamento de inconsistências entre o texto e o diagrama corrigindo por exemplo um erro de digitação em "Bastion host". |
+| Documentação do projeto em geral (Markdown) | Google Gemini | Apoio na organização dos tópicos, estruturação e formatação das informações fornecidas pelo usuário para o modelo .md. |
