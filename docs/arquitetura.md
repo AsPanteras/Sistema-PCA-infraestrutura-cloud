@@ -106,6 +106,24 @@ O acesso administrativo à infraestrutura é realizado exclusivamente por SSH at
 | Segurança | **JWT (JSON Web Token)** | Padrão utilizado para autenticação segura e autorização das rotas da API. |
 | Bastion Host | **Amazon EC2** | Instância dedicada ao acesso administrativo à máquina do backend via SSH (porta 22). |
 
+# 7. Dimensionamento das instâncias
+
+O dimensionamento dos recursos computacionais foi realizado com base no perfil de uso da aplicação (5 a 10 usuários simultâneos diariamente, acessos estáveis) e na necessidade de manter a estabilidade do sistema, evitando tanto o *underprovisioning* (falta de recursos que gera quedas) quanto o *overprovisioning* (capacidade ociosa que gera custos desnecessários).
+
+Abaixo está o detalhamento da capacidade alocada para cada componente da arquitetura:
+
+| Camada / Componente | Serviço AWS | Tamanho/Família | vCPU | Memória RAM | Armazenamento |
+|---|---|---|---|---|---|
+| **Frontend** (Angular/Nginx) | AWS Fargate (ECS) | Serverless | 0.25 | 2 GB | 20 GB (Efêmero) |
+| **Backend + Banco de Dados** | Amazon EC2 | t3.medium | 2 | 4 GB | 30 GB (EBS gp3) |
+| **Bastion Host** | Amazon EC2 | t4g.nano | 2 | 0.5 GB | 8 GB (EBS gp3) |
+
+#### Justificativas do Dimensionamento:
+
+* **Frontend (AWS Fargate):** Sendo responsável apenas por executar o Nginx para servir arquivos estáticos e atuar como proxy reverso, a carga de processamento é muito baixa. A configuração de 0.25 vCPU e 2 GB de RAM é o dimensionamento inicial ideal no Fargate para contêineres leves, garantindo a entrega rápida da interface sem custos excessivos.
+* **Backend + Banco de Dados (t3.medium):** Esta é a máquina que suporta a maior carga de trabalho. Como os contêineres da API (Java/Spring Boot - JVM) e do banco de dados (PostgreSQL) rodam simultaneamente no mesmo *host*, tamanhos menores (como a *micro* com 1 GB ou *small* com 2 GB) resultariam em estouro de memória (OOM - *Out of Memory*), derrubando a aplicação. Os 4 GB de RAM da `t3.medium` suportam os serviços com folga. A escolha da família "T" (baseada em acúmulo de créditos de CPU) é ideal, pois a aplicação não exige processamento intenso em 100% do tempo.
+* **Bastion Host (t4g.nano):** A função exclusiva desta máquina é servir de ponte para tráfego SSH em direção à rede privada. Como não há processamento de dados nem hospedagem de aplicações, o menor tamanho disponível foi escolhido. A adoção da família `t4g` (processadores AWS Graviton baseados em arquitetura ARM) reduz o custo operacional mantendo a performance necessária para conexões seguras.
+
 # 10. Riscos e Limitações 
 
 ## 10.1. Tabela de Riscos
