@@ -21,3 +21,4 @@ Este documento tem como objetivo registrar a utilização de ferramentas de Inte
 | Explicação de Sintaxe Markdown | Gemini (Google) | Orientação sobre como utilizar subtítulos (`##`, `###`) na formatação de arquivos `.md`. |
 | Revisão geral da documentação | Claude (Anthropic) | Apontamento de inconsistências entre o texto e o diagrama corrigindo por exemplo um erro de digitação em "Bastion host". |
 | Documentação do projeto em geral (Markdown) | Google Gemini | Apoio na organização dos tópicos, estruturação e formatação das informações fornecidas pelo usuário para o modelo .md. |
+| Relatório de Custos | Google Gemini | Apoio na estruturação, análise e formatação em Markdown dos relatórios de custos da AWS, organizando os dados extraídos dos PDFs da calculadora oficial para comparar os cenários de provisionamento contínuo (730 horas) e uso sob demanda (10 horas mensais). |
