@@ -32,7 +32,7 @@ Para garantir a segurança operacional e evitar exposições desnecessárias via
 * O acesso administrativo às instâncias do backend via SSH (porta 22) é realizado exclusivamente através deste Bastion Host.
 
 # 2. Diagrama da arquitetura
-![Diagrama da arquitetura](diagramas/Sistema-PCA-diagrama.drawio.png)
+![Diagrama da arquitetura](diagramas/Sistema-PCA.drawio.png)
 
 # 3. Plano de endereçamento IP
 O dimensionamento da infraestrutura foi estruturado da seguinte forma: A região escolhida foi **us-east-2** (Ohio - USA), usando a zona de disponibilidade **us-east-2a**. Também foi definida uma VPC (Virtual private cloud) com o bloco privado 10.0.0.0/16, conforme a RFC 1918, subdividida em duas sub-redes /24, sem sobreposição:
@@ -43,7 +43,45 @@ O dimensionamento da infraestrutura foi estruturado da seguinte forma: A região
 | Sub-rede | pub-pca-a | 10.0.10.0/24 | us-east-2a | Pública | Bastion, NAT Gateway, Frontend da aplicação |
 | Sub-rede | priv-pca-a | 10.0.20.0/24 | us-east-2a | Privada | Backend da aplicação, banco |
 
-A escolha do bloco /16 para a VPC foi pensado levando em consideração a possibilidade de expansão futura da infraestrutura, esse bloco fornece 65.536 endereços IPV4, permitindo a criação outras sub-redes sem a necessidade de alterar o bloco. Para as sub-redes, foi escolhido o bloco /24 que fornece 256 endereços, quantidade suficiente para os recursos previstos em cada sub-rede. A AWS reserva 5 endereços em cada bloco CIDR de sub-rede para uso interno da infraestrutura, sendo eles os 4 primeiros endereços e o último, o que torna 251 endereços utilizáveis ao todo em cada sub-rede.
+A escolha do bloco /16 para a VPC foi escolhido levando em consideração a possibilidade de expansão futura da infraestrutura, esse bloco fornece 65.536 endereços IPv4, permitindo a criação de outras sub-redes sem a necessidade de alterar o bloco. Para as sub-redes, foi escolhido o bloco /24 que fornece 256 endereços, quantidade suficiente para os recursos previstos em cada sub-rede. A AWS reserva 5 endereços em cada bloco CIDR de sub-rede para uso interno da infraestrutura, sendo eles os 4 primeiros endereços e o último, o que torna 251 endereços utilizáveis ao todo em cada sub-rede.
+
+
+# 4. Tabelas de rota
+Cada sub-rede possui uma tabela de rotas própria. A sub-rede pública utiliza o Internet Gateway para comunicação com a Internet, enquanto a sub-rede privada utiliza o NAT Gateway para conexões de saída.
+
+| Recurso | Destino | Alvo | Justificativa |
+| --- | ---| --- | --- |
+| Sub-rede pública | 10.0.0.0/16 | Local | Comunicação interna da VPC |
+| Sub-rede pública | 0.0.0.0/0 | Internet Gateway | Acesso dos usuários ao frontend, acesso do administrador via SSH ao Bastion e saída do NAT Gateway para internet |
+| Sub-rede privada | 10.0.0.0/16 | Local | Comunicação interna com frontend (8080) e bastion (22) |
+| Sub-rede privada | 0.0.0.0/0 | NAT Gateway | Saída da aplicação para serviços externos, como o portal Elothec |
+
+#### Justificativas
+* **Rota local**: Criada automaticamente pela AWS e permite a comunicação entre os recursos da VPC por endereços privadas.
+* **Internet Gateway**: Permite acesso da sub-rede pública à internet. O NAT Gateway também utiliza essa rota para encaminhar o tráfego externo.
+* **NAT Gateway**: Permite que recursos da sub-rede privada iniciem conexões com a internet sem possuir IP público.
+
+A ausência da rota 0.0.0.0/0 -> NAT Gateway ocasionaria na impossibilidade da aplicação na sub-rede privada acessar serviços externos, consequentemente perdendo a integração com o portal da Elotech.
+
+# 5. Matriz de regras de segurança
+As regras de segurança foram definidas seguindo o princípio do menor privilégio, permitindo somente os fluxos necessários para o funcionamento da aplicação. O frontend é o único componente exposto à Internet, utilizando as portas HTTP/HTTPS. 
+O acesso administrativo à infraestrutura é realizado exclusivamente por SSH através do Bastion Host, cujo acesso é restrito ao IP do administrador. A aplicação aceita requisições somente vindas do frontend, enquanto o banco de dados não é exposto externamente e permanece acessível apenas internamente à aplicação dentro da rede Docker.
+
+| Grupo de segurança | Direção | Protocolo | Porta | Origem/Destino | Justificativa |
+|---|---|---|---|---|---|
+| sg-bastion | Entrada | TCP | 22 | <ip_do_admin>/32 | Acesso administrativo |
+| sg-bastion | Saída | TCP | 22 | sg-app | Conexão SSH do Bastion para a aplicação |
+| sg-app | Entrada | TCP | 22 | sg-bastion | SSH apenas via Bastion |
+| sg-app | Entrada | TCP | 8080 | sg-front | Acesso à API apenas via frontend |
+| sg-app | Saída | TCP | 80/443 | 0.0.0.0/0 | Acesso a serviços externos por meio do NAT Gateway |
+| sg-front | Entrada | TCP | 443 | 0.0.0.0/0 | Acesso HTTPS à aplicação pelo usuário |
+| sg-front | Entrada | TCP | 80 | 0.0.0.0/0 | Acesso HTTP à aplicação pelo usuário |
+| sg-front | Saída | TCP | 8080 | sg-app | Proxy reverso para a API |
+
+#### Justificativas:
+* **sg-bastion**: Permite apenas a entrada SSH do IP do administrador, evitando que a máquina fique esposta para acesso de qualquer IP. Como saída, usa a porta 22 para acessar a EC2 da aplicação.
+* **sg-app**: Permite entrada SSH (porta 22) exclusiva do Bastion, e libera a porta 8080 para acesso do frontend apenas, não expondo a aplicação para a internet. Como saída, libera as portas 80 e 443 para permitir serviços externos, como a API do portal Elotech, por meio do NAT Gateway.
+* **sg-front**: Permite entrada HTTP e HTTPS (80/443) para acesso do usuário na aplicação. Como saída, acessa a VM da aplicação via porta 8080.
 
 # 6. Tabela de Tecnologias
 | Categoria | Tecnologia | Descrição |
