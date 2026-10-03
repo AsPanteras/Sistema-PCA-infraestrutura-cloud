@@ -18,11 +18,11 @@ Seguindo a linha de raciocínio do que seria necessário para suprir as necessid
 A aplicação CPA adota uma abordagem híbrida e moderna na nuvem, separando as camadas de interface do usuário, lógica de negócios e persistência de dados para garantir alta disponibilidade, escalabilidade e segurança.
 
 ### 1.2.1. Camada do FrontEnd
-O frontend é executado de forma conteinerizada utilizando **AWS ECS (Elastic Container Service)**.
+A interface de usuário foi desenvolvida utilizando o framework **Angular 19** e é executada de forma conteinerizada utilizando **AWS ECS (Elastic Container Service)**.
 * **Proxy Reverso e Roteamento:** O gerenciamento do tráfego de entrada e o roteamento de caminhos  são centralizados em um proxy Nginx dedicado, responsável por realizar o proxy reverso e encaminhar as requisições diretamente para os serviços do backend, eliminando a necessidade do AWS API Gateway.
 
 ### 1.2.2. Camada do BackEnd e Banco de Dados
-O núcleo da aplicação utiliza uma abordagem tradicional baseada em instâncias de máquinas virtuais **Amazon EC2 (VM)**.
+O núcleo da aplicação é uma API construída em **Java 17 utilizando Spring Boot**, enquanto a persistência de dados relacional utiliza **PostgreSQL**. Esta camada utiliza uma abordagem tradicional baseada em instâncias de máquinas virtuais **Amazon EC2 (VM)**.
 * **Containers Docker:** Tanto a aplicação backend quanto o banco de dados rodam encapsulados em containers Docker na mesma instância EC2 (ou em instâncias correlacionadas).
 * **Segurança de Comunicação:** A comunicação entre o backend e o banco de dados ocorre de forma estritamente interna e isolada, reduzindo a superfície de exposição externa.
 
@@ -30,6 +30,14 @@ O núcleo da aplicação utiliza uma abordagem tradicional baseada em instância
 Para garantir a segurança operacional e evitar exposições desnecessárias via SSH:
 * É utilizado um **Bastion Host (Amazon EC2)** dedicado a funcionar como um ponto de entrada seguro (entreposto).
 * O acesso administrativo às instâncias do backend via SSH (porta 22) é realizado exclusivamente através deste Bastion Host.
+
+## 1.3. Funcionalidades Principais e Interoperabilidade
+Para atender à demanda de monitoramento do PCA, a aplicação conta com as seguintes funcionalidades vitais nesta entrega:
+* **AndamentoService:** Gerencia a fase atual do PCA antes da publicação (ex: fase de TR).
+* **PcaService & SecretariaService:** Cadastros estruturais dos planos e das secretarias do município.
+* **LicitacaoService & SincronizacaoAgendadaJob:** Responsáveis pela interoperabilidade. Consomem a API pública municipal para buscar novas licitações. O Job possui **tolerância a falhas**: caso a API da prefeitura fique fora do ar, o erro não quebra a aplicação; o evento (data, hora e erro) é registrado no banco de dados para auditoria.
+* **PcaSugestaoService:** Sistema de recomendação que sugere associações entre PCAs e licitações importadas sem vínculo.
+* **RelatorioService:** Geração de resultados consolidados para facilitar o trabalho da equipe de compras.
 
 # 2. Diagrama da arquitetura
 ![Diagrama da arquitetura](diagramas/Sistema-PCA-diagrama.drawio.png)
@@ -49,11 +57,15 @@ A escolha do bloco /16 para a VPC foi pensado levando em consideração a possib
 | Categoria | Tecnologia | Descrição |
 |---|---|---|
 | Provedor de nuvem | **AWS** | Provedor de infraestrutura em nuvem escolhido para hospedar a aplicação. |
-| Frontend | **Amazon ECS (Elastic Container Service)** | Gerenciamento e execução do frontend em containers, utilizando uma abordagem serverless. |
-| Frontend | **Nginx** | Proxy reverso responsável pelo gerenciamento do tráfego de entrada e pelo roteamento das requisições para os serviços do backend. |
-| Backend | **Amazon EC2 (Elastic Compute Cloud)** | Instância de máquina virtual para hospedar e executar o backend em uma arquitetura tradicional. |
-| Backend e banco de dados | **Docker** | Containerização dos serviços do backend e do banco de dados, com comunicação interna entre os containers. |
-| Bastion Host | **Amazon EC2** | Instância dedicada ao acesso administrativo à máquina do backend, por meio de conexão SSH (porta 22). |
+| Frontend (Framework) | **Angular 19** | Framework utilizado para a construção de toda a interface do usuário (SPA). |
+| Frontend (Hospedagem) | **Amazon ECS** | Gerenciamento e execução do frontend em containers, utilizando uma abordagem serverless. |
+| Proxy / Roteamento | **Nginx** | Proxy reverso responsável pelo gerenciamento do tráfego de entrada e roteamento. |
+| Backend (Linguagem/Framework)| **Java 17 + Spring Boot** | Linguagem e framework base para a construção da API REST da aplicação. |
+| Backend (Hospedagem) | **Amazon EC2** | Instância de máquina virtual para hospedar e executar o backend. |
+| Banco de Dados | **PostgreSQL** | Banco de dados relacional utilizado para a persistência das informações do sistema. |
+| Conteinerização | **Docker** | Containerização dos serviços (Front, Back e Banco), garantindo portabilidade de implantação. |
+| Segurança | **JWT (JSON Web Token)** | Padrão utilizado para autenticação segura e autorização das rotas da API. |
+| Bastion Host | **Amazon EC2** | Instância dedicada ao acesso administrativo à máquina do backend via SSH (porta 22). |
 
 # 10. Riscos e Limitações 
 
