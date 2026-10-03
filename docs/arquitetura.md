@@ -31,6 +31,9 @@ Para garantir a segurança operacional e evitar exposições desnecessárias via
 * É utilizado um **Bastion Host (Amazon EC2)** dedicado a funcionar como um ponto de entrada seguro (entreposto).
 * O acesso administrativo às instâncias do backend via SSH (porta 22) é realizado exclusivamente através deste Bastion Host.
 
+# 2. Diagrama da arquitetura
+![Diagrama da arquitetura](docs/diagramas/Sistema-PCA-diagrama.drawio.png)
+
 # 3. Plano de endereçamento IP
 O dimensionamento da infraestrutura foi estruturado da seguinte forma: A região escolhida foi **us-east-2** (Ohio - USA), usando a zona de disponibilidade **us-east-2a**. Também foi definida uma VPC (Virtual private cloud) com o bloco privado 10.0.0.0/16, conforme a RFC 1918, subdividida em duas sub-redes /24, sem sobreposição:
 
