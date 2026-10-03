@@ -57,4 +57,11 @@ A escolha do bloco /16 para a VPC foi pensado levando em consideração a possib
 
 # 10. Riscos e Limitações 
 
-
+## 10.1. Riscos
+| Risco | Descrição |
+|---|---|
+| Ponto único de falha no backend e no banco | Backend e banco rodam na mesma instância EC2. Se ela falhar, a aplicação e os dados ficam indisponíveis. |
+| Falha da zona de disponibilidade | Toda a infraestrutura está em uma única zona (us-east-2a), então uma falha nela derruba todos os componentes. |
+| Perda de dados | O banco roda em container, sem serviço gerenciado. Sem backups, a falha do disco ou a remoção do container pode causar perda de dados, e o histórico precisa ser mantido integralmente. |
+| Ponto único de falha no NAT Gateway | Há um único NAT Gateway. Se ele falhar, o backend perde a saída para a internet e as sincronizações com o Portal da Transparência (Elotech) param. |
+| Dependência do Portal da Transparência | A atualização dos dados públicos depende da disponibilidade de um serviço externo, fora do controle da equipe. |
