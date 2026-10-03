@@ -17,11 +17,11 @@ Seguindo a linha de raciocínio do que seria necessário para suprir as necessid
 
 A aplicação CPA adota uma abordagem híbrida e moderna na nuvem, separando as camadas de interface do usuário, lógica de negócios e persistência de dados para garantir alta disponibilidade, escalabilidade e segurança.
 
-### 1.2.1 Camada do FrontEnd
+### 1.2.1. Camada do FrontEnd
 O frontend é executado de forma conteinerizada utilizando **AWS ECS (Elastic Container Service)**.
 * **Proxy Reverso e Roteamento:** O gerenciamento do tráfego de entrada e o roteamento de caminhos  são centralizados em um proxy Nginx dedicado, responsável por realizar o proxy reverso e encaminhar as requisições diretamente para os serviços do backend, eliminando a necessidade do AWS API Gateway.
 
-### 1.2.2 Camada do BackEnd e Banco de Dados
+### 1.2.2. Camada do BackEnd e Banco de Dados
 O núcleo da aplicação utiliza uma abordagem tradicional baseada em instâncias de máquinas virtuais **Amazon EC2 (VM)**.
 * **Containers Docker:** Tanto a aplicação backend quanto o banco de dados rodam encapsulados em containers Docker na mesma instância EC2 (ou em instâncias correlacionadas).
 * **Segurança de Comunicação:** A comunicação entre o backend e o banco de dados ocorre de forma estritamente interna e isolada, reduzindo a superfície de exposição externa.
@@ -40,5 +40,7 @@ Para garantir a segurança operacional e evitar exposições desnecessárias via
 | Backend | **Amazon EC2 (Elastic Compute Cloud)** | Instância de máquina virtual para hospedar e executar o backend em uma arquitetura tradicional. |
 | Backend e banco de dados | **Docker** | Containerização dos serviços do backend e do banco de dados, com comunicação interna entre os containers. |
 | Bastion Host | **Amazon EC2** | Instância dedicada ao acesso administrativo à máquina do backend, por meio de conexão SSH (porta 22). |
+
+# 10. Riscos e Limitações 
 
 
