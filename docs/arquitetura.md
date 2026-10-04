@@ -113,26 +113,21 @@ O acesso administrativo à infraestrutura é realizado exclusivamente por SSH at
 | AWS | T4g.nano | T4g (CPU intermitente) | nano |
 | AWS | AWS Fargate (ECS) | ECS Fargate | Task 0.25 vCPU / 2 GB |
 
-## 7.1. Instâncias no projeto
-| Componente | Família | Tipo | vCPU | Memória | Disco | Sub-rede |
-|---|---|---|---|---|---|---|
-| API da aplicação + banco de dados | T3 | T3.medium | 2 | 4.0 | EBS | Privada |
-| Bastion Host | T4g | T4g.nano | 2 | 0.5 | EBS | Pública |
-| Frontend da aplicação | ECS/Fargate | Task 0.25 vCPU / 2 GB | 0.25 | 2.0 | Pública |
+O dimensionamento dos recursos computacionais foi realizado com base no perfil de uso da aplicação (5 a 10 usuários simultâneos diariamente, acessos estáveis) e na necessidade de manter a estabilidade do sistema, evitando tanto o *underprovisioning* (falta de recursos que gera quedas) quanto o *overprovisioning* (capacidade ociosa que gera custos desnecessários).
 
-#### Justificativas
-* **T3.medium (API da aplicação + banco)**
-    - **Justificativa da Família (t3):** Foi escolhida a família de uso geral com CPU partilhada baseada em créditos. Esta família é ideal para cargas de trabalho que não exigem processamento intensivo de forma contínua, oferecendo o melhor rácio de custo-benefício.
+Abaixo está o detalhamento da capacidade alocada para cada componente da arquitetura:
 
-    - **Comportamento no Limite de Créditos:** Se a aplicação sofrer um pico de acessos e esgotar os créditos acumulados, o desempenho da CPU será drasticamente estrangulado (throttled) para uma linha de base baixa (ex: 20%). A aplicação ficará extremamente lenta até que o tráfego diminua e novos créditos sejam gerados.
+| Camada / Componente | Serviço AWS | Tamanho/Família | vCPU | Memória RAM | Armazenamento |
+|---|---|---|---|---|---|
+| **Frontend** (Angular/Nginx) | AWS Fargate (ECS) | Serverless | 0.25 | 2 GB | 20 GB (Efêmero) |
+| **Backend + Banco de Dados** | Amazon EC2 | t3.medium | 2 | 4 GB | 30 GB (EBS gp3) |
+| **Bastion Host** | Amazon EC2 | t4g.nano | 2 | 0.5 GB | 8 GB (EBS gp3) |
 
-    - **Justificativa do Tamanho (medium):** Um tamanho menor, como o t3.micro (com 1 GB de RAM), não seria suficiente. Como a máquina precisa de executar o serviço Docker contendo a JVM do backend em Java/Spring Boot juntamente com a base de dados PostgreSQL, 1 GB resultaria em underprovisioning (falta de memória e falhas na aplicação). O tamanho medium (4 GB RAM) suporta as tecnologias adequadamente sem causar overprovisioning.
+#### Justificativas do Dimensionamento:
 
-* **T4g.nano (Bastion Host)**
-    - Usada estritamente como entreposto (jump box) para aceder via SSH à máquina do backend na sub-rede privada. Terá regras estritas, permitindo apenas ligações na porta 22. Sendo uma carga levíssima, o menor tamanho disponível na família t4g (processadores ARM Graviton) é mais do que suficiente.
-
-* **AWS Fargate (Frontend da aplicação)**
-    - O Fargate gere os contentores de forma serverless. É responsável por executar o Nginx, que serve os ficheiros estáticos da interface Angular e atua como proxy reverso para o backend.
+* **Frontend (AWS Fargate):** Sendo responsável apenas por executar o Nginx para servir arquivos estáticos e atuar como proxy reverso, a carga de processamento é muito baixa. A configuração de 0.25 vCPU e 2 GB de RAM é o dimensionamento inicial ideal no Fargate para contêineres leves, garantindo a entrega rápida da interface sem custos excessivos.
+* **Backend + Banco de Dados (t3.medium):** Esta é a máquina que suporta a maior carga de trabalho. Como os contêineres da API (Java/Spring Boot - JVM) e do banco de dados (PostgreSQL) rodam simultaneamente no mesmo *host*, tamanhos menores (como a *micro* com 1 GB ou *small* com 2 GB) resultariam em estouro de memória (OOM - *Out of Memory*), derrubando a aplicação. Os 4 GB de RAM da `t3.medium` suportam os serviços com folga. A escolha da família "T" (baseada em acúmulo de créditos de CPU) é ideal, pois a aplicação não exige processamento intenso em 100% do tempo.
+* **Bastion Host (t4g.nano):** A função exclusiva desta máquina é servir de ponte para tráfego SSH em direção à rede privada. Como não há processamento de dados nem hospedagem de aplicações, o menor tamanho disponível foi escolhido. A adoção da família `t4g` (processadores AWS Graviton baseados em arquitetura ARM) reduz o custo operacional mantendo a performance necessária para conexões seguras.
 
 # 8. Estimativa de custos
 **Link da Estimativa (730h):** [Calculadora AWS - 730h](https://calculator.aws/#/estimate?id=eef5ffee754d84b811869b21335e88b29be590a6)
@@ -170,7 +165,7 @@ Para evitar surpresas na faturação, será implementado o seguinte plano:
 
 * **Tags nos Recursos:** Todos os recursos (EC2, ECS, Volumes EBS) receberão etiquetas estruturadas. Isso permitirá utilizar o AWS Cost Explorer para auditar exatamente que componente do sistema está a consumir mais verbas.
 
-## 8.2. Anexos: Detalhamento das Estimativas do Provedor (PDF)
+## 8.3. Anexos: Detalhamento das Estimativas do Provedor (PDF)
 
 Para demonstrar a viabilidade financeira do projeto durante a fase de desenvolvimento, o grupo gerou duas estimativas distintas: o cenário de infraestrutura ligada 24/7 e o cenário real de uso do grupo.
 
