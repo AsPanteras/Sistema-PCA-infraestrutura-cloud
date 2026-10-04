@@ -15,7 +15,7 @@ O sistema atual mantém o histórico integral dos dados, incluindo informações
 ## 1.2. Descrição da Aplicação
 Seguindo a linha de raciocínio do que seria necessário para suprir as necessidades atuais dos usuários, para suportar essa governança, a aplicação CPA foi dimensionada para operar com uma base enxuta, pois são de 5 a 10 usuários simultâneos diariamente, apresentando um perfil de acesso estável e sem picos abruptos de tráfego.
 
-A aplicação CPA adota uma abordagem híbrida e moderna na nuvem, separando as camadas de interface do usuário, lógica de negócios e persistência de dados para garantir alta disponibilidade, escalabilidade e segurança.
+A aplicação CPA adota uma abordagem híbrida e moderna na nuvem, separando as camadas de interface do usuário, lógica de negócios e persistência de dados, buscando segurança, organização e possibilidade de expansão da infraestrutura.
 
 ### 1.2.1. Camada do FrontEnd
 A interface de usuário foi desenvolvida utilizando o framework **Angular 19** e é executada de forma conteinerizada utilizando **AWS ECS (Elastic Container Service)**.
@@ -106,9 +106,106 @@ O acesso administrativo à infraestrutura é realizado exclusivamente por SSH at
 | Segurança | **JWT (JSON Web Token)** | Padrão utilizado para autenticação segura e autorização das rotas da API. |
 | Bastion Host | **Amazon EC2** | Instância dedicada ao acesso administrativo à máquina do backend via SSH (porta 22). |
 
-# 10. Riscos e Limitações 
+# 7. Dimensionamento das instâncias
+|Provedor | Exemplo | Família | Tamanho |
+|---|---|---|---|
+| AWS | t3.medium | t3 (CPU baseada em créditos) | medium |
+| AWS | T4g.nano | T4g (CPU intermitente) | nano |
+| AWS | AWS Fargate (ECS) | ECS Fargate | Task 0.25 vCPU / 2 GB |
 
-## 10.1. Tabela de Riscos
+## 7.1. Instâncias no projeto
+| Componente | Família | Tipo | vCPU | Memória | Disco | Sub-rede |
+|---|---|---|---|---|---|---|
+| API da aplicação + banco de dados | T3 | T3.medium | 2 | 4.0 | EBS | Privada |
+| Bastion Host | T4g | T4g.nano | 2 | 0.5 | EBS | Pública |
+| Frontend da aplicação | ECS/Fargate | Task 0.25 vCPU / 2 GB | 0.25 | 2.0 | Pública |
+
+#### Justificativas
+* **T3.medium (API da aplicação + banco)**
+    - **Justificativa da Família (t3):** Foi escolhida a família de uso geral com CPU partilhada baseada em créditos. Esta família é ideal para cargas de trabalho que não exigem processamento intensivo de forma contínua, oferecendo o melhor rácio de custo-benefício.
+
+    - **Comportamento no Limite de Créditos:** Se a aplicação sofrer um pico de acessos e esgotar os créditos acumulados, o desempenho da CPU será drasticamente estrangulado (throttled) para uma linha de base baixa (ex: 20%). A aplicação ficará extremamente lenta até que o tráfego diminua e novos créditos sejam gerados.
+
+    - **Justificativa do Tamanho (medium):** Um tamanho menor, como o t3.micro (com 1 GB de RAM), não seria suficiente. Como a máquina precisa de executar o serviço Docker contendo a JVM do backend em Java/Spring Boot juntamente com a base de dados PostgreSQL, 1 GB resultaria em underprovisioning (falta de memória e falhas na aplicação). O tamanho medium (4 GB RAM) suporta as tecnologias adequadamente sem causar overprovisioning.
+
+* **T4g.nano (Bastion Host)**
+    - Usada estritamente como entreposto (jump box) para aceder via SSH à máquina do backend na sub-rede privada. Terá regras estritas, permitindo apenas ligações na porta 22. Sendo uma carga levíssima, o menor tamanho disponível na família t4g (processadores ARM Graviton) é mais do que suficiente.
+
+* **AWS Fargate (Frontend da aplicação)**
+    - O Fargate gere os contentores de forma serverless. É responsável por executar o Nginx, que serve os ficheiros estáticos da interface Angular e atua como proxy reverso para o backend.
+
+# 8. Estimativa de custos
+**Link da Estimativa (730h):** [Calculadora AWS - 730h](https://calculator.aws/#/estimate?id=eef5ffee754d84b811869b21335e88b29be590a6)
+**Link da Estimativa (10h):** [Calculadora AWS - 10h](https://calculator.aws/#/estimate?id=7de0dfb7498d625c0f94082f71101b1c157a495a)
+
+## 8.1. Análise de Custos e Estratégia de Redução
+
+Abaixo encontra-se a lista dos itens de custo previstos no orçamento de uso contínuo:
+
+* **Amazon VPC:** 48,75 USD
+
+* **Amazon EC2 (Backend):** 32,77 USD
+
+* **AWS Fargate (Frontend):** 13,88 USD
+
+* **Amazon EC2 (Bastion):** 3,71 USD
+
+**Identificação do item mais caro:** O recurso mais caro do projeto é a Amazon VPC. Este valor é impulsionado pela existência de 3 endereços IPv4 públicos em uso (Bastion, NAT e ECS), pelo tráfego de dados de saída (50 GB) e, sobretudo, pelo custo por hora de funcionamento do NAT Gateway.
+
+**Proposta de redução de custos:**
+Para reduzir os valores do EC2 e Fargate, a equipa poderia abandonar o modelo "Sob Demanda" e adotar um Compute Savings Plan (compromisso de uso de 1 ou 3 anos). Para reduzir os custos da VPC, o NAT Gateway poderia ser substituído por uma instância EC2 a correr como NAT (NAT Instance).
+
+**O que se perde:** Ao adotar o Savings Plan, perde-se a flexibilidade de encerrar o projeto a qualquer momento, ficando a equipa presa a um contrato. Ao utilizar uma NAT Instance em vez do NAT Gateway gerido, perde-se a alta disponibilidade, a escalabilidade automática de banda larga e aumenta-se a carga de trabalho de manutenção da infraestrutura.
+
+**Utilização do Nível Gratuito (Free Tier):**
+Foi contemplada a utilização do Nível Gratuito da AWS. A camada gratuita cobre os 30 GB de armazenamento EBS de uso geral (gp3) acoplados à instância do backend. A VPC nativa e o Internet Gateway não têm custos. No entanto, serviços como a instância t3.medium, o NAT Gateway e o Fargate gerarão cobranças desde o início.
+
+## 8.2. Plano de Controlo de Custos do Grupo
+
+Para evitar surpresas na faturação, será implementado o seguinte plano:
+
+* **Alerta de Orçamento:** Configuração do AWS Budgets para enviar notificações imediatas por e-mail caso os gastos estimados alcancem um teto máximo de segurança predefinido.
+
+* **Destruição do Ambiente:** Como se trata de um ambiente de desenvolvimento, os recursos serão provisionados via código (Infrastructure as Code). A infraestrutura será destruída entre sessões de teste e desligada fora do horário de trabalho.
+
+* **Tags nos Recursos:** Todos os recursos (EC2, ECS, Volumes EBS) receberão etiquetas estruturadas. Isso permitirá utilizar o AWS Cost Explorer para auditar exatamente que componente do sistema está a consumir mais verbas.
+
+## 8.2. Anexos: Detalhamento das Estimativas do Provedor (PDF)
+
+Para demonstrar a viabilidade financeira do projeto durante a fase de desenvolvimento, o grupo gerou duas estimativas distintas: o cenário de infraestrutura ligada 24/7 e o cenário real de uso do grupo.
+
+### Cenário 1: Utilização Contínua (730 horas/mês)
+
+* **Documento de referência:** [My Estimate - Calculadora de Preços da AWS.pdf](./My%20Estimate%20-%20Calculadora%20de%20Preços%20da%20AWS.pdf)
+
+A AWS utiliza a média de **730 horas por mês** para calcular o uso mensal ininterrupto de um recurso (365 dias por ano × 24 horas por dia ÷ 12 meses = 730 horas). Esta estimativa reflete o cenário em que a infraestrutura permanece ligada 24 horas por dia, totalizando **99,11 USD/mês**.
+
+### Cenário 2: Utilização Efetiva do Grupo (10 horas/mês)
+
+* **Documento de referência:** [My Estimate - Calculadora de Preços da AWS - 10 horas mês.pdf](./My%20Estimate%20-%20Calculadora%20de%20Preços%20da%20AWS%20-%2010%20horas%20mês.pdf)
+
+Alinhado ao plano descrito no item 4 (Destruição do Ambiente via IaC), a equipe manterá os recursos ativos apenas durante os períodos de teste e desenvolvimento. Estimamos o uso efetivo de **10 horas mensais**, derrubando o custo total para **48,85 USD/mês**.
+
+**Resumo dos Recursos (Base de 10 horas/mês):**
+
+* **AWS Fargate (Frontend Nginx):**
+  * Custo: **0,19 USD/mês** (queda de 98% em relação ao uso contínuo).
+  * Duração média: 10 horas, 1 tarefa/pod.
+
+* **Amazon EC2 (Backend e Banco de Dados - t3.medium):**
+  * Custo: **0,44 USD/mês** (redução significativa frente aos 32,77 USD originais).
+  * Estratégia de preço: Utilização sob demanda (10 horas).
+
+* **Amazon EC2 (Bastion Host - t4g.nano):**
+  * Custo: **2,17 USD/mês**.
+
+* **Amazon VPC (Atenção ao Custo Fixo):**
+  * Custo: **46,05 USD/mês**.
+  * **Análise:** Mesmo desligando as máquinas, a VPC continua sendo o maior ofensor de custos do projeto. Isso ocorre porque recursos como o **NAT Gateway e endereços IPv4 públicos** cobram taxas por hora de existência. Para que o custo caia efetivamente para os 48,85 USD demonstrados (ou até menos), a rotina de *Infrastructure as Code* deve destruir os IPs elásticos e o NAT Gateway ao final do dia de trabalho, não apenas parar as instâncias EC2.
+
+# 9. Riscos e Limitações 
+
+## 9.1. Tabela de Riscos
 | Risco | Descrição |
 |---|---|
 | Ponto único de falha no backend e no banco | Backend e banco rodam na mesma instância EC2. Se ela falhar, a aplicação e os dados ficam indisponíveis. |
@@ -117,7 +214,7 @@ O acesso administrativo à infraestrutura é realizado exclusivamente por SSH at
 | Ponto único de falha no NAT Gateway | Há um único NAT Gateway. Se ele falhar, o backend perde a saída para a internet e as sincronizações com o Portal da Transparência (Elotech) param. |
 | Dependência do Portal da Transparência | A atualização dos dados públicos depende da disponibilidade de um serviço externo, fora do controle da equipe. |
 
-## 10.2. Limitações
+## 9.2. Limitações
 * **Escalabilidade restrita:** o backend e o banco compartilham os recursos de uma única EC2, e a capacidade só aumenta com o aumento do porte da instância (escalabilidade vertical), o que exige reinício. A arquitetura atende ao volume atual, mas não a um crescimento expressivo de usuários ou de dados.
 * **Acesso administrativo manual:** a administração é feita via SSH pelo Bastion Host, sem automação completa de deploy, o que aumenta o risco de erro humano.
 * **Região fora do Brasil:** a região us-east-2 (Ohio) foi escolhida por critérios de custo e disponibilidade, mas aumenta a latência para os usuários em Serranópolis do Iguaçu - PR. Como o uso é leve, o impacto esperado é baixo.
