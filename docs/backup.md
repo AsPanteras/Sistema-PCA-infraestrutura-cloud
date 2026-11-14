@@ -57,3 +57,25 @@ s3://pca-backup-<sufixo>/
 **Camada 2: snapshot do volume EBS (complementar).** Snapshot semanal do volume de 30 GB, com Amazon Data Lifecycle Manager, retenção de 5 cópias. Serve para recompor a máquina inteira (SO, Docker, volumes) mais rápido do que reconstruir por IaC e restaurar o dump. É opcional: se o grupo aceitar reconstruir pela IaC, a camada 1 basta.
 
 **Teste de restauração.** Uma vez por trimestre, restaurar o último dump mensal num contêiner PostgreSQL temporário e conferir contagens (PCAs, licitações, usuários). Backup que nunca foi restaurado não é garantia.
+
+### 2.2. Análise de custos para 12 meses
+
+---
+
+## 3. Política mínima: configurada na nuvem e apresentada
+
+**Objetivo:** exercitar o ciclo completo (gerar, guardar, expirar, restaurar) com custo próximo de zero.
+
+### 3.1. Estrutura:
+
+A estrutura mínima proposta:
+
+| Componente | O que é | Por que entra |
+|---|---|---|
+| **Dump do PostgreSQL** (`pg_dump -Fc`) | Arquivo único com todos os dados do sistema | É onde estão os dados que não se recriam (seção 1.1) |
+| **Bucket S3** | Armazenamento de objetos para os dumps | Fora da instância: sobrevive à perda da EC2 e à destruição do ambiente |
+| **Regra de ciclo de vida** | Expira os dumps antigos automaticamente | Demonstra a rotação (em escala reduzida) |
+| **Perfil IAM** da instância | Permissão mínima de escrita no bucket | Sem chaves de acesso gravadas no servidor |
+| **Teste de restauração** | `pg_restore` num contêiner temporário | Prova que o backup serve |
+
+Fica de fora, de propósito, na política mínima: snapshots EBS, replicação entre regiões e backup de segredos (seguem descritos no plano conservador).
