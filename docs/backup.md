@@ -22,9 +22,17 @@ Esta parte tem duas políticas com papéis diferentes:
 
 > Conclusão: o alvo principal é o **banco de dados**. O restante da instância é reconstruível por IaC.
 
-### 1.2. Metas de recuperação (premissas do grupo) <!--verificar as metas de recuperação>
-* **RPO (quanto de dado se aceita perder): até 24 horas.**
-* **RTO (quanto tempo para voltar): algumas horas.**
+### 1.2. Metas de recuperação (RPO e RTO)
+
+A arquitetura desta entrega é de alta disponibilidade (duas zonas de disponibilidade, ALB e banco RDS PostgreSQL Multi-AZ com replicação síncrona). Alta disponibilidade e backup protegem contra falhas diferentes, por isso as metas são definidas por cenário:
+
+| Cenário | Mecanismo | RPO (dado que se aceita perder) | RTO (tempo para voltar) |
+|---|---|---|---|
+| Falha de instância ou de uma zona de disponibilidade | Alta disponibilidade: failover automático do RDS Multi-AZ e backend/frontend na outra zona | Praticamente zero (replicação síncrona) | Poucos minutos (estimativa de 1 a 2 minutos para o failover do banco) |
+| Erro lógico: exclusão ou corrupção de dados, deploy defeituoso, ataque | Backup: restauração do dump do S3 (política GFS) | Até 24 horas (backup diário) | Algumas horas (criar ou preparar o banco, baixar o dump e executar o `pg_restore`; valor a medir no teste de restauração) |
+| Perda da região ou da conta | Fora do escopo desta entrega | - | - |
+
+A replicação síncrona **não substitui o backup**: ela copia para a réplica qualquer alteração, inclusive um erro. O backup é a única forma de voltar a um estado anterior. O RTO do cenário de backup será medido no teste de restauração trimestral e atualizado neste documento.
 
 ## 2. Política conservadora (GFS): apenas o plano
 
@@ -67,15 +75,36 @@ s3://pca-backup-<sufixo>/
 **Objetivo:** exercitar o ciclo completo (gerar, guardar, expirar, restaurar) com custo próximo de zero.
 
 ### 3.1. Estrutura:
-
+  
 A estrutura mínima proposta:
 
 | Componente | O que é | Por que entra |
 |---|---|---|
 | **Dump do PostgreSQL** (`pg_dump -Fc`) | Arquivo único com todos os dados do sistema | É onde estão os dados que não se recriam (seção 1.1) |
 | **Bucket S3** | Armazenamento de objetos para os dumps | Fora da instância: sobrevive à perda da EC2 e à destruição do ambiente |
-| **Regra de ciclo de vida** | Expira os dumps antigos automaticamente | Demonstra a rotação (em escala reduzida) |
+| **Regra de ciclo de vida** | Expira os dumps antigos e também as versões não atuais | Demonstra a rotação (em escala reduzida) e evita custo escondido do versionamento |
 | **Perfil IAM** da instância | Permissão mínima de escrita no bucket | Sem chaves de acesso gravadas no servidor |
 | **Teste de restauração** | `pg_restore` num contêiner temporário | Prova que o backup serve |
 
 Fica de fora, de propósito, na política mínima: snapshots EBS, replicação entre regiões e backup de segredos (seguem descritos no plano conservador).
+
+## 4. Auditoria e escolha do tipo de armazenamento
+
+**Decisão do grupo:** manter **todas as cópias da política GFS no S3 Standard**, sem regras de arquivamento em Glacier. O sistema é de uso interno, serve ao planejamento e ao acompanhamento do PCA, e os dados oficiais são os publicados no portal. O custo é irrisório e a restauração é imediata em caso de falha.
+
+**Premissa assumida:** os dados produzidos no sistema (andamentos, justificativas, registros de auditoria) são protegidos pelo backup, mas **não há exigência de retenção por prazo superior a 12 meses** nem de arquivamento imutável. Se a prefeitura ou o controle interno indicarem o contrário, esta decisão deve ser revista conforme a tabela abaixo. A premissa deve ser confirmada com a P.O.
+
+A escolha entre S3 Standard e as classes Glacier **não é decisão de custo** e sim de **requisito de retenção e de acesso**. A pergunta que decide:
+
+> Os dados produzidos no sistema PCA (andamentos, justificativas, registros de auditoria, usuários) se enquadram em uma política de auditoria e retenção do município, ou apenas os dados publicados no portal oficial?
+
+| Resposta | Consequência para o backup |
+|---|---|
+| **Só o publicado no portal está sujeito a auditoria** | Os dados do sistema são ferramenta interna. Basta o GFS da seção 2, tudo em **S3 Standard** (ou Standard-IA para os mensais). Glacier não se justifica. |
+| **Os dados do sistema entram em auditoria, com retenção maior que 12 meses** | Manter o GFS para recuperação operacional e **acrescentar uma cópia anual (ou mensal) em arquivo** pelo prazo exigido: **Glacier Instant Retrieval** se a consulta precisa ser imediata, **Deep Archive** se puder esperar horas. Se houver exigência de imutabilidade, avaliar o **S3 Object Lock**. |
+
+Por que **não** usar Glacier para as gerações filho e pai:
+
+* As classes Glacier têm **tempo mínimo de cobrança** (90 dias no Instant e no Flexible Retrieval, 180 dias no Deep Archive). Um dump que vive 7 dias seria cobrado por 90 ou 180.
+* Elas cobram **por GB restaurado** e, nas mais frias, exigem **horas de espera** (de 12 a 48 horas conforme o tipo). Para restaurar "o backup de ontem" depois de uma falha, isso é ruim para o RTO.
+* Nas classes Flexible Retrieval e Deep Archive, cada objeto carrega ~40 KB de metadados, o que pesa quando os arquivos são pequenos.
