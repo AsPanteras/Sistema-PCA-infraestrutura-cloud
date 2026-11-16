@@ -114,6 +114,10 @@ A estrutura mínima proposta:
 
 Fica de fora, de propósito, na política mínima: backup automático do RDS com restauração para um ponto no tempo, replicação entre regiões e backup de segredos (seguem descritos no plano conservador).
 
+### 3.4. Custo
+
+Poucos dumps de ~50 MB por poucos dias: **abaixo de US$ 0,01 por mês** de armazenamento e requisições. O que precisa ser conferido é o plano da conta AWS usada (créditos ou nível gratuito), que pode zerar até esse valor.
+
 ## 4. Auditoria e escolha do tipo de armazenamento
 
 **Decisão do grupo:** manter **todas as cópias da política GFS no S3 Standard**, sem regras de arquivamento em Glacier. O sistema é de uso interno, serve ao planejamento e ao acompanhamento do PCA, e os dados oficiais são os publicados no portal. O custo é irrisório e a restauração é imediata em caso de falha.
@@ -134,3 +138,20 @@ Por que **não** usar Glacier para as gerações filho e pai:
 * As classes Glacier têm **tempo mínimo de cobrança** (90 dias no Instant e no Flexible Retrieval, 180 dias no Deep Archive). Um dump que vive 7 dias seria cobrado por 90 ou 180.
 * Elas cobram **por GB restaurado** e, nas mais frias, exigem **horas de espera** (de 12 a 48 horas conforme o tipo). Para restaurar "o backup de ontem" depois de uma falha, isso é ruim para o RTO.
 * Nas classes Flexible Retrieval e Deep Archive, cada objeto carrega ~40 KB de metadados, o que pesa quando os arquivos são pequenos.
+
+## 5. Resumo das decisões propostas
+
+* Dump lógico do PostgreSQL (`-Fc`) executado por uma EC2 de aplicação contra o RDS, enviado a um bucket S3 próprio, **fora da pilha destruída** pelo IaC.
+* GFS por **prefixos + regras de ciclo de vida** (7 / 35 / 365 dias), sem script de rotação, expirando também as versões não atuais.
+* Acesso por perfil IAM e **endpoint Gateway do S3** nas duas sub-redes privadas (sem NAT, sem custo).
+* **S3 Standard em todas as gerações**, com a premissa de auditoria registrada na seção 4.
+* **RPO e RTO por cenário** (seção 1.2): alta disponibilidade cobre falha de infraestrutura; o backup cobre erro lógico.
+* **Teste de restauração** como parte da política, não como extra; ele mede o RTO real.
+* Backup automático do RDS (restauração para um ponto no tempo) como melhoria recomendada.
+
+## 6. Riscos e limitações do plano
+
+* O backup fica na mesma região (`us-east-2`). O S3 já replica entre zonas, o que cobre a falha de zona, mas **não** cobre a falha de região (replicação entre regiões é possível, com custo adicional pequeno para este volume).
+* Dump lógico é uma foto no momento da execução: com RPO de 24 h, até um dia de andamentos e justificativas pode ser perdido em caso de erro lógico (as licitações sincronizadas voltam pela rotina). O backup automático do RDS reduz esse risco.
+* O agendamento do backup roda em uma única EC2 (seção 2.1).
+* Segredos e variáveis de ambiente não estão no dump e precisam de guarda própria.
