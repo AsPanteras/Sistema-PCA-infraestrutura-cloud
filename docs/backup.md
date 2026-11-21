@@ -74,7 +74,7 @@ s3://pca-backup-<sufixo>/
 
 ### 2.2. Análise de custos para 12 meses
 
-**Premissas** (a confirmar medindo o dump real):
+**Premissas**:
 
 * Tamanho de cada dump comprimido: cerca de **200 MB** (margem de folga: a base atual tem cerca de 3.500 licitações e 150 a 210 itens de PCA por ano, então o dump real tende a ser bem menor).
 * 24 cópias simultâneas (teto da política): 24 x 200 MB = 4,8 GB, arredondado para **5 GB** na Calculadora da AWS.
@@ -96,7 +96,7 @@ Leitura do resultado:
 
 ---
 
-## 3. Política mínima: configurada na nuvem e apresentada
+## 3. Política mínima: 
 
 **Objetivo:** exercitar o ciclo completo (gerar, guardar, expirar, restaurar) com custo próximo de zero.
 
@@ -116,7 +116,7 @@ Fica de fora, de propósito, na política mínima: backup automático do RDS com
 
 ### 3.4. Custo
 
-Poucos dumps de ~50 MB por poucos dias: **abaixo de US$ 0,01 por mês** de armazenamento e requisições. O que precisa ser conferido é o plano da conta AWS usada (créditos ou nível gratuito), que pode zerar até esse valor.
+Poucos dumps de ~50 MB por poucos dias: **abaixo de US$ 0,01 por mês** de armazenamento e requisições.
 
 ## 4. Auditoria e escolha do tipo de armazenamento
 
